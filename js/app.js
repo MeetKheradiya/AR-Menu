@@ -360,13 +360,22 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Provide immediate feedback on click if device cannot activate WebXR AR
+    // Directly trigger device AR camera session when "Place on Table" is tapped
     if (arPlaceBtn) {
-      arPlaceBtn.addEventListener('click', () => {
-        if (modelViewer && !modelViewer.canActivateAR) {
-          console.error('AR session error', { reason: 'AR not supported on this device' });
-          if (statusText) statusText.textContent = 'AR is not supported on this device.';
-          if (deviceStatusBox) deviceStatusBox.className = 'ar-device-status unsupported';
+      arPlaceBtn.addEventListener('click', (e) => {
+        if (modelViewer) {
+          if (modelViewer.canActivateAR) {
+            console.log('AR session start - Launching AR camera');
+            try {
+              modelViewer.activateAR();
+            } catch (err) {
+              console.error('AR session error', err);
+            }
+          } else {
+            console.error('AR session error', { reason: 'AR not supported on this device' });
+            if (statusText) statusText.textContent = 'AR is not supported on this browser/desktop. Open on a mobile device!';
+            if (deviceStatusBox) deviceStatusBox.className = 'ar-device-status unsupported';
+          }
         }
       });
     }
