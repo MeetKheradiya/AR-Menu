@@ -225,17 +225,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      // Request rear mobile camera (environment facing) for realistic AR
-      const constraints = {
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      };
+      let stream = null;
+      try {
+        // Try rear mobile camera (environment facing) for realistic AR placement
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false
+        });
+      } catch (e1) {
+        console.log('Environment camera constraint failed, using general video input:', e1);
+        // Fallback to any available video camera
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       activeVideoStream = stream;
       videoEl.srcObject = stream;
       await videoEl.play();
@@ -453,20 +458,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Handle "Place on Table" button click
     if (arPlaceBtn) {
-      arPlaceBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        
-        // 1. Try activating WebXR native AR if supported by mobile browser
-        if (modelViewer && modelViewer.canActivateAR) {
-          try {
-            modelViewer.activateAR();
-            return;
-          } catch (err) {
-            console.error('AR session error', err);
-          }
-        }
+      arPlaceBtn.addEventListener('click', () => {
+        // 1. Ensure live camera stream starts
+        startCameraStream();
 
-        // 2. Trigger table placement grounding effect in live camera view
+        // 2. Trigger table placement reticle feedback
         const reticle = document.getElementById('ar-placement-reticle');
         if (reticle) {
           reticle.classList.remove('hidden');
@@ -599,19 +595,8 @@ document.addEventListener('DOMContentLoaded', () => {
     modalOverlay.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
 
-    // 1. Automatically start mobile camera stream
+    // Automatically start camera stream synchronously on user click
     startCameraStream();
-
-    // 2. If WebXR native AR is available, automatically trigger activateAR()
-    setTimeout(() => {
-      if (modelViewer && modelViewer.canActivateAR) {
-        try {
-          modelViewer.activateAR();
-        } catch (err) {
-          console.log('WebXR auto activation fallback:', err);
-        }
-      }
-    }, 350);
 
     // Update AR Support Indicator status
     if (statusText && deviceStatusBox) {

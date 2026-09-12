@@ -186,19 +186,16 @@
               camera-orbit="0deg 75deg 105%"
               loading="eager">
               
-              <!-- Slotted AR button for Model-Viewer -->
-              <button slot="ar-button" id="ar-modelviewer-slot-btn" class="hidden" style="display:none;"></button>
+              <!-- Slotted Place on Table AR Button for Model-Viewer -->
+              <button slot="ar-button" id="ar-place-btn" class="ar-place-btn">
+                <svg class="ar-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                  <path d="M2 17l10 5 10-5"></path>
+                  <path d="M2 12l10 5 10-5"></path>
+                </svg>
+                <span id="ar-place-btn-text">Place on Table</span>
+              </button>
             </model-viewer>
-
-            <!-- Floating Place on Table Action Button -->
-            <button type="button" id="ar-place-btn" class="ar-place-btn">
-              <svg class="ar-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                <path d="M2 17l10 5 10-5"></path>
-                <path d="M2 12l10 5 10-5"></path>
-              </svg>
-              <span id="ar-place-btn-text">Place on Table</span>
-            </button>
 
             <!-- Friendly error state if model fails to load -->
             <div class="ar-error-state hidden" id="ar-error-state">
