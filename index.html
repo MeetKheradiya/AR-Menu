@@ -1,0 +1,200 @@
+`````````<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cafe Menu & AR Experience | Artisanal Brews & Blends</title>
+  <meta name="description" content="Explore our handcrafted cafe menu featuring Hot Coffee, Cold Coffee, Frapelicious specialties, and tasty Add-ons with AR 3D view preparation." />
+
+  <!-- Google Fonts: Outfit, Plus Jakarta Sans, Caveat -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Google Model-Viewer Web Component (Latest Stable 3D/AR Library) -->
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
+</head>
+<body>
+  <div class="site-wrapper">
+    <!-- Header & Hero -->
+    <header class="cafe-header" id="cafe-header">
+      <div class="container">
+        <div class="brand-badge">
+          <span class="brand-badge-icon" aria-hidden="true">☕</span>
+          <span class="brand-badge-text">Artisanal Coffee House</span>
+        </div>
+        <h1 class="cafe-title">Artisan <span>Brews</span></h1>
+        <p class="cafe-tagline">Crafted with single-origin beans, creamy frothed milk, and passion</p>
+
+        <!-- Reference Menu Post-It Stickers -->
+        <div class="promo-stickers-row" aria-label="Special Offers">
+          <div class="postit-card left">
+            <span class="postit-tag">Special Add-On</span>
+            <span class="postit-title">Whipped Cream</span>
+            <span class="postit-price">₹38</span>
+            <span class="postit-note">When you purchase Coffee</span>
+          </div>
+
+          <div class="postit-card right">
+            <span class="postit-tag">Special Add-On</span>
+            <span class="postit-title">Glazed Donut</span>
+            <span class="postit-price">₹38</span>
+            <span class="postit-note">When you purchase Coffee</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Sticky Navigation & Search Controls -->
+    <nav class="controls-bar" id="controls-bar" aria-label="Menu Navigation">
+      <div class="container controls-inner">
+        <!-- Search Input -->
+        <div class="search-wrapper">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input 
+            type="text" 
+            id="search-input" 
+            class="search-input" 
+            placeholder="Search coffee, frappe, flavors..." 
+            aria-label="Search menu items"
+            autocomplete="off"
+          />
+          <button type="button" id="clear-search" class="clear-search-btn" aria-label="Clear search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Category Filter Tabs -->
+        <div class="category-nav" id="category-nav" role="tablist" aria-label="Coffee Categories">
+          <!-- Dynamically generated via app.js -->
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="container menu-container">
+      <div class="stats-bar">
+        <span id="items-count">Loading coffee menu...</span>
+        <span class="stats-tip">💡 Tap "View in AR" to inspect 3D preparation</span>
+      </div>
+
+      <!-- Drink Cards Container -->
+      <div id="menu-container" aria-live="polite">
+        <!-- Dynamically rendered via app.js -->
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="cafe-footer" id="cafe-footer">
+      <div class="container">
+        <div class="footer-logo-wrap">
+          <div class="footer-coffee-badge" aria-hidden="true">☕</div>
+          <div class="footer-brand-title">COFFEE &amp; CO.</div>
+        </div>
+        <div class="footer-quote">
+          "Drink It. Do Stupid Things Faster With More Energy"
+        </div>
+        <p class="footer-info">
+          Handcrafted espresso, chilled coffee brews &amp; decadent blended frapes.<br />
+          Prices inclusive of all applicable taxes.
+        </p>
+        <div class="footer-ar-notice">
+          <span>●</span> 3D AR Ready (.glb format prepared for WebXR / ModelViewer)
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- AR Preparation Toast Notification -->
+  <div class="ar-toast" id="ar-toast" role="status" aria-live="polite">
+    <div class="toast-icon" aria-hidden="true">🧊</div>
+    <div class="toast-body" id="ar-toast-msg">
+      <strong>AR View Prepared</strong><br />
+      <span class="toast-sub">3D model link ready</span>
+    </div>
+  </div>
+
+  <!-- 3D AR Product Preview Modal -->
+  <div class="ar-modal-overlay" id="ar-modal-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="ar-modal-title">
+    <div class="ar-modal-backdrop" id="ar-modal-backdrop"></div>
+    <div class="ar-modal-container">
+      <div class="ar-modal-card">
+        <!-- Modal Header -->
+        <div class="ar-modal-header">
+          <div class="ar-title-badge-wrap">
+            <span class="ar-badge-tag">3D AR PREVIEW</span>
+            <h2 class="ar-modal-title" id="ar-modal-title">Cappuccino</h2>
+          </div>
+          <button type="button" class="ar-modal-close" id="ar-modal-close" aria-label="Close 3D preview">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Modal Body / 3D Viewer Container -->
+        <div class="ar-modal-body">
+          <div class="ar-viewer-wrapper" id="ar-viewer-wrapper">
+            <model-viewer
+              id="ar-model-viewer"
+              src="models/cappuccino.glb"
+              alt="Cappuccino 3D Model"
+              camera-controls
+              auto-rotate
+              ar
+              ar-modes="webxr scene-viewer quick-look"
+              ar-placement="floor"
+              shadow-intensity="1"
+              field-of-view="30deg"
+              camera-orbit="0deg 75deg 105%"
+              loading="eager">
+              
+              <button slot="ar-button" id="ar-place-btn" class="ar-place-btn hidden" style="display: none;">
+                <svg class="ar-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                  <path d="M2 17l10 5 10-5"></path>
+                  <path d="M2 12l10 5 10-5"></path>
+                </svg>
+                <span>Place on Table</span>
+              </button>
+            </model-viewer>
+
+            <!-- Friendly error state if model fails to load -->
+            <div class="ar-error-state hidden" id="ar-error-state">
+              <div class="ar-error-icon" aria-hidden="true">☕</div>
+              <h3 class="ar-error-title" id="ar-error-title">3D model failed to load.</h3>
+              <p class="ar-error-sub" id="ar-error-sub">Please check your internet connection or try again later.</p>
+            </div>
+          </div>
+
+          <!-- Price & AR Device Compatibility Banner -->
+          <div class="ar-modal-footer">
+            <div class="ar-price-box">
+              <span class="ar-price-label">Price</span>
+              <span class="ar-price-value" id="ar-modal-price">₹108</span>
+            </div>
+            <div class="ar-device-status" id="ar-device-status">
+              <span class="status-indicator"></span>
+              <span id="ar-status-text">Checking AR support...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/menu-data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
