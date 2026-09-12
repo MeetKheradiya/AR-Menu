@@ -201,6 +201,106 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  let activeVideoStream = null;
+  let isCameraActive = false;
+
+  /**
+   * Start Live Mobile Rear Camera Feed Stream for AR
+   */
+  async function startCameraStream() {
+    const videoEl = document.getElementById('ar-camera-video');
+    const cameraBadge = document.getElementById('ar-camera-badge');
+    const cameraBadgeText = document.getElementById('ar-camera-badge-text');
+    const camToggleText = document.getElementById('cam-toggle-text');
+    const modelViewer = document.getElementById('ar-model-viewer');
+
+    if (!videoEl) return false;
+
+    // Check mediaDevices API availability
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.warn('Camera API not available in current environment');
+      if (cameraBadgeText) cameraBadgeText.textContent = '☕ 3D Studio Mode';
+      if (camToggleText) camToggleText.textContent = '3D Mode';
+      return false;
+    }
+
+    try {
+      // Request rear mobile camera (environment facing) for realistic AR
+      const constraints = {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      activeVideoStream = stream;
+      videoEl.srcObject = stream;
+      await videoEl.play();
+
+      videoEl.classList.add('active');
+      isCameraActive = true;
+
+      if (cameraBadge) cameraBadge.classList.add('active');
+      if (cameraBadgeText) cameraBadgeText.textContent = '📷 Live Camera AR';
+      if (camToggleText) camToggleText.textContent = 'Cam Active';
+
+      // Transparent 3D background overlay over live camera feed
+      if (modelViewer) {
+        modelViewer.classList.add('camera-active');
+      }
+      return true;
+    } catch (err) {
+      console.warn('Camera access denied or device without active camera:', err);
+      stopCameraStream();
+      if (cameraBadge) cameraBadge.classList.remove('active');
+      if (cameraBadgeText) cameraBadgeText.textContent = '☕ 3D Studio Mode';
+      if (camToggleText) camToggleText.textContent = 'Enable Cam';
+      return false;
+    }
+  }
+
+  /**
+   * Stop Live Camera Feed Stream and release media tracks
+   */
+  function stopCameraStream() {
+    const videoEl = document.getElementById('ar-camera-video');
+    const cameraBadge = document.getElementById('ar-camera-badge');
+    const modelViewer = document.getElementById('ar-model-viewer');
+
+    if (activeVideoStream) {
+      activeVideoStream.getTracks().forEach(track => track.stop());
+      activeVideoStream = null;
+    }
+
+    if (videoEl) {
+      videoEl.pause();
+      videoEl.srcObject = null;
+      videoEl.classList.remove('active');
+    }
+
+    isCameraActive = false;
+    if (cameraBadge) cameraBadge.classList.remove('active');
+    if (modelViewer) modelViewer.classList.remove('camera-active');
+  }
+
+  /**
+   * Toggle camera stream manually
+   */
+  function toggleCameraStream() {
+    if (isCameraActive) {
+      stopCameraStream();
+      const cameraBadgeText = document.getElementById('ar-camera-badge-text');
+      const camToggleText = document.getElementById('cam-toggle-text');
+      if (cameraBadgeText) cameraBadgeText.textContent = '☕ 3D Studio Mode';
+      if (camToggleText) camToggleText.textContent = 'Enable Cam';
+    } else {
+      startCameraStream();
+    }
+  }
+
   /**
    * Setup Event Listeners
    */
@@ -240,6 +340,12 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Camera Toggle Button in Header
+    const camToggleBtn = document.getElementById('ar-cam-toggle-btn');
+    if (camToggleBtn) {
+      camToggleBtn.addEventListener('click', toggleCameraStream);
+    }
+
     // Modal Close Controls
     const closeBtn = document.getElementById('ar-modal-close');
     const backdrop = document.getElementById('ar-modal-backdrop');
@@ -268,34 +374,33 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * Initialize AR Buttons
-   * First phase: AR preview modal is enabled for Cappuccino item.
-   * Other items retain status toast until 3D models are connected in future phase.
+   * Initialize AR Buttons and Drink Card Clicks
    */
   function initARButtons() {
     const arButtons = document.querySelectorAll('.ar-button');
+    const drinkCards = document.querySelectorAll('.drink-card');
+
     arButtons.forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
+        e.stopPropagation();
         const card = btn.closest('.drink-card');
-        const itemId = card ? card.dataset.id : null;
-        
-        if (itemId === 'cappuccino') {
-          window.openAR('cappuccino');
-        } else {
-          const modelPath = btn.dataset.model;
-          const itemName = btn.dataset.name;
-          showARToast(itemName, modelPath);
-        }
+        const itemId = card ? card.dataset.id : 'cappuccino';
+        window.openAR(itemId);
+      });
+    });
+
+    drinkCards.forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.ar-button')) return;
+        const itemId = card.dataset.id || 'cappuccino';
+        window.openAR(itemId);
       });
     });
   }
 
   /**
-   * Setup Model Viewer Listeners (Load success, 404 Error fallback, AR status)
-   */
-  /**
-   * Setup Model Viewer Listeners (Load success, 404 Error fallback, AR status, console logs)
+   * Setup Model Viewer Listeners (Load success, fallback, AR status)
    */
   function setupARViewerListeners() {
     const modelViewer = document.getElementById('ar-model-viewer');
@@ -304,87 +409,88 @@ document.addEventListener('DOMContentLoaded', () => {
     const arPlaceBtn = document.getElementById('ar-place-btn');
     const statusText = document.getElementById('ar-status-text');
     const deviceStatusBox = document.getElementById('ar-device-status');
+    const titleEl = document.getElementById('ar-modal-title');
 
     if (!modelViewer) return;
 
-    // Ensure AR button is initially hidden until model loads successfully (Req 10)
-    if (arPlaceBtn) {
-      arPlaceBtn.classList.add('hidden');
-      arPlaceBtn.style.display = 'none';
-    }
-
-    // Handle model loading error (Req 9 & Req 11)
+    // Handle model loading error with fallback to cappuccino.glb
     modelViewer.addEventListener('error', (event) => {
-      console.error('model loading error', event);
-      if (errorTitle) {
-        errorTitle.textContent = '3D model failed to load.';
-      }
-      if (errorState) {
-        errorState.classList.remove('hidden');
-      }
-      modelViewer.style.display = 'none';
-      
-      // Do not allow AR button to appear on failure (Req 10)
-      if (arPlaceBtn) {
-        arPlaceBtn.classList.add('hidden');
-        arPlaceBtn.style.display = 'none';
+      console.warn('3D model load error, checking fallback', event);
+      const currentSrc = modelViewer.getAttribute('src');
+      if (currentSrc !== 'models/cappuccino.glb') {
+        modelViewer.setAttribute('src', 'models/cappuccino.glb');
+        modelViewer.setAttribute('ios-src', 'models/cappuccino.usdz');
+        if (errorState) errorState.classList.add('hidden');
+        modelViewer.style.display = 'block';
+      } else {
+        if (errorTitle) errorTitle.textContent = '3D model failed to load.';
+        if (errorState) errorState.classList.remove('hidden');
+        modelViewer.style.display = 'none';
       }
     });
 
-    // Handle model load success (Req 9 & Req 10)
-    modelViewer.addEventListener('load', (event) => {
-      console.log('model loaded successfully', event);
-      if (errorState) {
-        errorState.classList.add('hidden');
-      }
+    // Handle model load success
+    modelViewer.addEventListener('load', () => {
+      if (errorState) errorState.classList.add('hidden');
       modelViewer.style.display = 'block';
-
-      // Show AR button ONLY after model has loaded successfully (Req 10)
       if (arPlaceBtn) {
         arPlaceBtn.classList.remove('hidden');
         arPlaceBtn.style.display = 'inline-flex';
       }
     });
 
-    // Listen for AR status changes (Req 9)
+    // Listen for AR status changes
     modelViewer.addEventListener('ar-status', (event) => {
       const status = event.detail ? event.detail.status : null;
-      console.log('AR status', status);
-
       if (status === 'session-started') {
-        console.log('AR session start');
+        console.log('Native WebXR AR session started');
+        if (statusText) statusText.textContent = 'Native AR session active on mobile device';
       } else if (status === 'failed') {
-        console.error('AR session error', event);
-        if (statusText) statusText.textContent = 'AR is not supported on this device.';
-        if (deviceStatusBox) deviceStatusBox.className = 'ar-device-status unsupported';
+        if (statusText) statusText.textContent = 'WebXR AR failed. Live Camera stream active in browser.';
+        if (deviceStatusBox) deviceStatusBox.className = 'ar-device-status supported';
       }
     });
 
-    // Directly trigger device AR camera session when "Place on Table" is tapped
+    // Handle "Place on Table" button click
     if (arPlaceBtn) {
       arPlaceBtn.addEventListener('click', (e) => {
-        if (modelViewer) {
-          if (modelViewer.canActivateAR) {
-            console.log('AR session start - Launching AR camera');
-            try {
-              modelViewer.activateAR();
-            } catch (err) {
-              console.error('AR session error', err);
-            }
-          } else {
-            console.error('AR session error', { reason: 'AR not supported on this device' });
-            if (statusText) statusText.textContent = 'AR is not supported on this browser/desktop. Open on a mobile device!';
-            if (deviceStatusBox) deviceStatusBox.className = 'ar-device-status unsupported';
+        e.preventDefault();
+        
+        // 1. Try activating WebXR native AR if supported by mobile browser
+        if (modelViewer && modelViewer.canActivateAR) {
+          try {
+            modelViewer.activateAR();
+            return;
+          } catch (err) {
+            console.error('AR session error', err);
           }
         }
+
+        // 2. Trigger table placement grounding effect in live camera view
+        const reticle = document.getElementById('ar-placement-reticle');
+        if (reticle) {
+          reticle.classList.remove('hidden');
+          setTimeout(() => reticle.classList.add('hidden'), 2500);
+        }
+
+        // Ground coffee model on table surface
+        if (modelViewer) {
+          modelViewer.removeAttribute('auto-rotate');
+          modelViewer.setAttribute('camera-orbit', '0deg 75deg 105%');
+          modelViewer.setAttribute('shadow-intensity', '2');
+        }
+
+        const itemName = titleEl ? titleEl.textContent : 'Coffee';
+        showARToast(`${itemName} Placed on Table`, 'Anchored in live camera view! ☕');
       });
     }
   }
 
   /**
-   * Close AR Modal Dialog
+   * Close AR Modal Dialog & stop camera stream
    */
   function closeARModal() {
+    stopCameraStream();
     const modalOverlay = document.getElementById('ar-modal-overlay');
     if (modalOverlay) {
       modalOverlay.classList.remove('active');
@@ -394,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * Display toast notification indicating AR preparation status for non-connected drinks
+   * Display toast notification
    */
   function showARToast(name, model) {
     if (!arToast || !arToastMsg) return;
@@ -405,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     arToastMsg.innerHTML = `
       <strong>${escapeHtml(name)}</strong><br>
-      <span class="toast-sub">Prepared for 3D AR Model: <code>${escapeHtml(model)}</code></span>
+      <span class="toast-sub">${escapeHtml(model)}</span>
     `;
 
     arToast.classList.add('visible');
@@ -476,13 +582,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (titleEl) titleEl.textContent = item.name;
     if (priceEl) priceEl.textContent = `₹${item.price}`;
 
-    // Reset error state, AR place button, and viewer visibility before loading new src
+    // Reset state before loading src
     if (errorState) errorState.classList.add('hidden');
-    const arPlaceBtn = document.getElementById('ar-place-btn');
-    if (arPlaceBtn) {
-      arPlaceBtn.classList.add('hidden');
-      arPlaceBtn.style.display = 'none';
-    }
+    modelViewer.setAttribute('auto-rotate', '');
+    modelViewer.setAttribute('shadow-intensity', '1.2');
     modelViewer.style.display = 'block';
 
     const modelSrc = item.model.startsWith('/') ? item.model.slice(1) : item.model;
@@ -496,14 +599,28 @@ document.addEventListener('DOMContentLoaded', () => {
     modalOverlay.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
 
-    // Update AR Support Indicator
+    // 1. Automatically start mobile camera stream
+    startCameraStream();
+
+    // 2. If WebXR native AR is available, automatically trigger activateAR()
+    setTimeout(() => {
+      if (modelViewer && modelViewer.canActivateAR) {
+        try {
+          modelViewer.activateAR();
+        } catch (err) {
+          console.log('WebXR auto activation fallback:', err);
+        }
+      }
+    }, 350);
+
+    // Update AR Support Indicator status
     if (statusText && deviceStatusBox) {
       if (modelViewer.canActivateAR) {
-        statusText.textContent = 'AR Ready — Tap "Place on Table"';
+        statusText.textContent = 'Native WebXR AR Ready — Tap "Place on Table"';
         deviceStatusBox.className = 'ar-device-status supported';
       } else {
-        statusText.textContent = 'AR is not supported on this device.';
-        deviceStatusBox.className = 'ar-device-status unsupported';
+        statusText.textContent = 'Camera AR Active — Tap "Place on Table"';
+        deviceStatusBox.className = 'ar-device-status supported';
       }
     }
   };
