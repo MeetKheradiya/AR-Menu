@@ -148,12 +148,14 @@
             <model-viewer
               id="ar-model-viewer"
               src="models/cappuccino.glb"
+              ios-src="models/cappuccino.usdz"
               alt="Cappuccino 3D Model"
               camera-controls
               auto-rotate
               ar
-              ar-modes="webxr scene-viewer quick-look"
+              ar-modes="scene-viewer quick-look webxr"
               ar-placement="floor"
+              ar-scale="fixed"
               shadow-intensity="1"
               field-of-view="30deg"
               camera-orbit="0deg 75deg 105%"

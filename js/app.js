@@ -486,7 +486,9 @@ document.addEventListener('DOMContentLoaded', () => {
     modelViewer.style.display = 'block';
 
     const modelSrc = item.model.startsWith('/') ? item.model.slice(1) : item.model;
+    const usdzSrc = modelSrc.replace(/\.(glb|gltf)$/i, '.usdz');
     modelViewer.setAttribute('src', modelSrc);
+    modelViewer.setAttribute('ios-src', usdzSrc);
     modelViewer.setAttribute('alt', `${item.name} 3D Model`);
 
     // Activate Modal Overlay
