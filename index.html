@@ -197,6 +197,16 @@
               </button>
             </model-viewer>
 
+            <!-- Re-center / Lock Position Button when Anchored -->
+            <button type="button" id="ar-recenter-btn" class="ar-recenter-btn hidden" title="Re-center table product location">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="16"></line>
+                <line x1="8" y1="12" x2="16" y2="12"></line>
+              </svg>
+              <span>Re-Center Position</span>
+            </button>
+
             <!-- Friendly error state if model fails to load -->
             <div class="ar-error-state hidden" id="ar-error-state">
               <div class="ar-error-icon" aria-hidden="true">☕</div>

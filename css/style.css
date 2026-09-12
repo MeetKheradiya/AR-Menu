@@ -1223,6 +1223,40 @@ model-viewer#ar-model-viewer.camera-active {
   flex-shrink: 0;
 }
 
+/* Floating Re-Center Position Button */
+.ar-recenter-btn {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1rem;
+  background: rgba(18, 9, 5, 0.85);
+  border: 1px solid var(--gold-primary);
+  border-radius: var(--radius-full);
+  color: var(--gold-primary);
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 10px var(--gold-glow);
+  backdrop-filter: blur(8px);
+  transition: all var(--transition-fast);
+}
+
+.ar-recenter-btn:hover {
+  background: var(--gold-primary);
+  color: #120804;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(245, 166, 35, 0.45);
+}
+
+.ar-recenter-btn.hidden {
+  display: none !important;
+}
+
 /* Error State overlay when cappuccino.glb is missing */
 .ar-error-state {
   position: absolute;

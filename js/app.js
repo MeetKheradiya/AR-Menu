@@ -1,7 +1,7 @@
 /**
  * Cafe Menu Application Logic
  * Renders interactive menu, handles category filtering, search,
- * and prepares AR button hooks for future 3D model integration.
+ * live camera stream AR background, device orientation tracking, and 3D model interaction.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,6 +17,17 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeCategory = 'all';
   let searchQuery = '';
   let toastTimeout = null;
+
+  let activeVideoStream = null;
+  let isCameraActive = false;
+
+  // Phone Gyroscope / Orientation Tracking State
+  let isTableAnchored = false;
+  let initialAlpha = null;
+  let initialBeta = null;
+  let baseOrbitYaw = 0;
+  let baseOrbitPitch = 75;
+  let baseOrbitRadius = 105;
 
   // Initialize
   renderCategoryTabs();
@@ -56,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderMenuItems() {
     if (!menuContainer || !window.MENU_ITEMS) return;
 
-    // Filter items based on active category and search query
     const filteredItems = window.MENU_ITEMS.filter(item => {
       const matchesCategory = activeCategory === 'all' || item.categorySlug === activeCategory;
       const matchesSearch = searchQuery === '' || 
@@ -67,12 +77,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return matchesCategory && matchesSearch;
     });
 
-    // Update count indicator
     if (itemsCountEl) {
       itemsCountEl.textContent = `Showing ${filteredItems.length} item${filteredItems.length === 1 ? '' : 's'}`;
     }
 
-    // Empty state
     if (filteredItems.length === 0) {
       menuContainer.innerHTML = `
         <div class="empty-state">
@@ -95,9 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Group by category if "All" is active, or render current category
     let html = '';
-    
     if (activeCategory === 'all' && searchQuery === '') {
       const groups = [
         { id: 'hot-coffee', title: 'HOT COFFEE', quote: 'Drink It. Do Stupid Things Faster With More Energy' },
@@ -184,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
               class="ar-button" 
               data-model="${item.model}" 
               data-name="${escapeHtml(item.name)}"
-              aria-label="View ${escapeHtml(item.name)} in AR (Coming Soon)"
+              aria-label="View ${escapeHtml(item.name)} in AR"
               title="3D Model: ${item.model}"
             >
               <svg class="ar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -201,9 +207,6 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  let activeVideoStream = null;
-  let isCameraActive = false;
-
   /**
    * Start Live Mobile Rear Camera Feed Stream for AR
    */
@@ -216,7 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!videoEl) return false;
 
-    // Check mediaDevices API availability
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       console.warn('Camera API not available in current environment');
       if (cameraBadgeText) cameraBadgeText.textContent = '☕ 3D Studio Mode';
@@ -227,14 +229,12 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       let stream = null;
       try {
-        // Try rear mobile camera (environment facing) for realistic AR placement
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: 'environment' } },
           audio: false
         });
       } catch (e1) {
-        console.log('Environment camera constraint failed, using general video input:', e1);
-        // Fallback to any available video camera
+        console.log('Environment camera constraint fallback to video:true', e1);
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: false
@@ -252,13 +252,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (cameraBadgeText) cameraBadgeText.textContent = '📷 Live Camera AR';
       if (camToggleText) camToggleText.textContent = 'Cam Active';
 
-      // Transparent 3D background overlay over live camera feed
       if (modelViewer) {
         modelViewer.classList.add('camera-active');
       }
       return true;
     } catch (err) {
-      console.warn('Camera access denied or device without active camera:', err);
+      console.warn('Camera access denied or unavailable:', err);
       stopCameraStream();
       if (cameraBadge) cameraBadge.classList.remove('active');
       if (cameraBadgeText) cameraBadgeText.textContent = '☕ 3D Studio Mode';
@@ -307,10 +306,106 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
+   * Request Device Orientation permission (iOS 13+ requirement) & attach gyro listener
+   */
+  async function enablePhoneOrientationTracking() {
+    isTableAnchored = true;
+    initialAlpha = null;
+    initialBeta = null;
+
+    if (typeof DeviceOrientationEvent !== 'undefined') {
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try {
+          const response = await DeviceOrientationEvent.requestPermission();
+          if (response === 'granted') {
+            attachOrientationListener();
+          } else {
+            console.warn('Device orientation permission denied');
+            attachOrientationListener();
+          }
+        } catch (e) {
+          console.warn('Device orientation permission request error:', e);
+          attachOrientationListener();
+        }
+      } else {
+        attachOrientationListener();
+      }
+    }
+  }
+
+  function attachOrientationListener() {
+    window.removeEventListener('deviceorientation', handleDeviceOrientation, true);
+    window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+  }
+
+  function detachOrientationListener() {
+    window.removeEventListener('deviceorientation', handleDeviceOrientation, true);
+    isTableAnchored = false;
+    initialAlpha = null;
+    initialBeta = null;
+
+    const recenterBtn = document.getElementById('ar-recenter-btn');
+    if (recenterBtn) {
+      recenterBtn.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Device Orientation Event Handler
+   * Dynamically tracks phone movement to keep product anchored in world direction
+   */
+  function handleDeviceOrientation(event) {
+    if (!isTableAnchored) return;
+
+    const alpha = event.alpha; // 0 to 360 degrees heading
+    const beta = event.beta;   // -180 to 180 degrees front-to-back tilt
+
+    if (alpha === null || alpha === undefined) return;
+
+    if (initialAlpha === null) {
+      initialAlpha = alpha;
+      initialBeta = beta;
+      return;
+    }
+
+    // Calculate phone rotation deltas
+    let deltaYaw = alpha - initialAlpha;
+    if (deltaYaw > 180) deltaYaw -= 360;
+    if (deltaYaw < -180) deltaYaw += 360;
+
+    let deltaPitch = (beta - initialBeta);
+
+    const modelViewer = document.getElementById('ar-model-viewer');
+    if (!modelViewer) return;
+
+    let targetYaw = baseOrbitYaw + deltaYaw;
+    let targetPitch = baseOrbitPitch - deltaPitch;
+
+    // Clamp pitch between 15° and 88°
+    targetPitch = Math.max(15, Math.min(88, targetPitch));
+
+    modelViewer.cameraOrbit = `${targetYaw.toFixed(1)}deg ${targetPitch.toFixed(1)}deg ${baseOrbitRadius}%`;
+  }
+
+  /**
+   * Reset / Recenter Table Placement Anchor
+   */
+  function recenterTablePosition() {
+    initialAlpha = null;
+    initialBeta = null;
+    baseOrbitYaw = 0;
+    baseOrbitPitch = 75;
+    const modelViewer = document.getElementById('ar-model-viewer');
+    if (modelViewer) {
+      modelViewer.cameraOrbit = `${baseOrbitYaw}deg ${baseOrbitPitch}deg ${baseOrbitRadius}%`;
+    }
+    showARToast('Position Re-centered', 'Product locked in front of camera 📍');
+  }
+
+  /**
    * Setup Event Listeners
    */
   function setupEventListeners() {
-    // Category Tabs click
     if (categoryNav) {
       categoryNav.addEventListener('click', (e) => {
         const tab = e.target.closest('.category-tab');
@@ -321,7 +416,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Search Input with debounce
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
         searchQuery = e.target.value.trim().toLowerCase();
@@ -332,7 +426,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Clear Search Button
     if (clearSearchBtn) {
       clearSearchBtn.addEventListener('click', () => {
         if (searchInput) {
@@ -345,13 +438,11 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Camera Toggle Button in Header
     const camToggleBtn = document.getElementById('ar-cam-toggle-btn');
     if (camToggleBtn) {
       camToggleBtn.addEventListener('click', toggleCameraStream);
     }
 
-    // Modal Close Controls
     const closeBtn = document.getElementById('ar-modal-close');
     const backdrop = document.getElementById('ar-modal-backdrop');
 
@@ -362,7 +453,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Escape') closeARModal();
     });
 
-    // Setup Model Viewer load and error event listeners
     setupARViewerListeners();
   }
 
@@ -412,13 +502,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorState = document.getElementById('ar-error-state');
     const errorTitle = document.getElementById('ar-error-title');
     const arPlaceBtn = document.getElementById('ar-place-btn');
+    const recenterBtn = document.getElementById('ar-recenter-btn');
     const statusText = document.getElementById('ar-status-text');
     const deviceStatusBox = document.getElementById('ar-device-status');
     const titleEl = document.getElementById('ar-modal-title');
 
     if (!modelViewer) return;
 
-    // Handle model loading error with fallback to cappuccino.glb
     modelViewer.addEventListener('error', (event) => {
       console.warn('3D model load error, checking fallback', event);
       const currentSrc = modelViewer.getAttribute('src');
@@ -434,7 +524,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Handle model load success
     modelViewer.addEventListener('load', () => {
       if (errorState) errorState.classList.add('hidden');
       modelViewer.style.display = 'block';
@@ -444,7 +533,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Listen for AR status changes
     modelViewer.addEventListener('ar-status', (event) => {
       const status = event.detail ? event.detail.status : null;
       if (status === 'session-started') {
@@ -456,20 +544,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Handle "Place on Table" button click
     if (arPlaceBtn) {
       arPlaceBtn.addEventListener('click', () => {
-        // 1. Ensure live camera stream starts
         startCameraStream();
+        enablePhoneOrientationTracking();
 
-        // 2. Trigger table placement reticle feedback
+        if (recenterBtn) {
+          recenterBtn.classList.remove('hidden');
+        }
+
         const reticle = document.getElementById('ar-placement-reticle');
         if (reticle) {
           reticle.classList.remove('hidden');
           setTimeout(() => reticle.classList.add('hidden'), 2500);
         }
 
-        // Ground coffee model on table surface
         if (modelViewer) {
           modelViewer.removeAttribute('auto-rotate');
           modelViewer.setAttribute('camera-orbit', '0deg 75deg 105%');
@@ -477,8 +566,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const itemName = titleEl ? titleEl.textContent : 'Coffee';
-        showARToast(`${itemName} Placed on Table`, 'Anchored in live camera view! ☕');
+        showARToast(`${itemName} Placed on Table 📍`, 'Phone direction tracking active! Move phone to view. ☕');
       });
+    }
+
+    if (recenterBtn) {
+      recenterBtn.addEventListener('click', recenterTablePosition);
     }
   }
 
@@ -487,6 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
    */
   function closeARModal() {
     stopCameraStream();
+    detachOrientationListener();
     const modalOverlay = document.getElementById('ar-modal-overlay');
     if (modalOverlay) {
       modalOverlay.classList.remove('active');
@@ -532,7 +626,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /**
    * Global Reusable AR Opener Component
-   * Supports: openAR("cappuccino"), openAR("models/cappuccino.glb"), openAR(itemObject)
    */
   window.openAR = function(drinkParam) {
     let item = null;
@@ -574,11 +667,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!modalOverlay || !modelViewer) return;
 
-    // Populate modal title and price
     if (titleEl) titleEl.textContent = item.name;
     if (priceEl) priceEl.textContent = `₹${item.price}`;
 
-    // Reset state before loading src
     if (errorState) errorState.classList.add('hidden');
     modelViewer.setAttribute('auto-rotate', '');
     modelViewer.setAttribute('shadow-intensity', '1.2');
@@ -590,15 +681,12 @@ document.addEventListener('DOMContentLoaded', () => {
     modelViewer.setAttribute('ios-src', usdzSrc);
     modelViewer.setAttribute('alt', `${item.name} 3D Model`);
 
-    // Activate Modal Overlay
     modalOverlay.classList.add('active');
     modalOverlay.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
 
-    // Automatically start camera stream synchronously on user click
     startCameraStream();
 
-    // Update AR Support Indicator status
     if (statusText && deviceStatusBox) {
       if (modelViewer.canActivateAR) {
         statusText.textContent = 'Native WebXR AR Ready — Tap "Place on Table"';
@@ -610,4 +698,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 });
-
